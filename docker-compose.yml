@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  swim-dashboard:
+    build: .
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

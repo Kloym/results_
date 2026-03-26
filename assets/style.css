@@ -1,0 +1,273 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+body {
+    background-color: #0c0d0f;
+    font-family: 'Inter', sans-serif;
+    color: #e6e8eb;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+.main-container {
+    max-width: 1300px;
+    padding: 40px;
+}
+
+.premium-card {
+    background: #141619;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    border: 1px solid #1f2328;
+    margin-bottom: 25px;
+    transition: box-shadow 0.3s ease;
+}
+
+.premium-card:hover {
+    box-shadow: 0 6px 30px rgba(0,0,0,0.3);
+}
+
+.tracker-header h1 {
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    font-size: 2.8rem;
+    background: linear-gradient(135deg, #fff 0%, #a1a1a1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.tracker-header p {
+    font-size: 1rem;
+    color: #ffffff;
+    margin-top: -10px;
+    opacity: 0.8;
+}
+
+.nav-pills {
+    justify-content: center;
+    border-bottom: 1px solid #1f2328;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+.nav-pills .nav-link {
+    color: #a1a1a1;
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 10px 20px;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.nav-pills .nav-link.active {
+    background-color: #1f2328;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+    color: white;
+}
+
+.section-title {
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: #fff;
+    margin-bottom: 20px;
+    letter-spacing: -0.5px;
+}
+
+.section-subtitle {
+    color: #7d8590;
+    font-size: 0.9rem;
+    margin-bottom: 25px;
+    margin-top: -15px;
+}
+
+.premium-input {
+    background-color: #0c0d0f !important;
+    border: 1px solid #2d333b !important;
+    color: white !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
+    height: 48px !important; 
+    padding: 12px 16px !important;
+    transition: all 0.2s ease !important;
+    box-shadow: none !important;
+}
+
+.premium-input:focus {
+    border-color: #007bff !important;
+    background-color: #141619 !important;
+}
+
+.premium-input::placeholder {
+    color: #4a515a !important;
+}
+
+.premium-btn {
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    padding: 14px 24px !important;
+    transition: all 0.3s ease !important;
+}
+
+.premium-btn-black {
+    background-color: #1f2328 !important;
+    border: 1px solid #2d333b !important;
+    color: #fff !important;
+}
+
+.premium-btn-black:hover {
+    background-color: #2d333b !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+.premium-btn-outline {
+    background-color: transparent !important;
+    border: 2px solid #2d333b !important;
+    color: #a1a1a1 !important;
+}
+
+.premium-btn-outline:hover {
+    border-color: #fff !important;
+    color: #fff !important;
+}
+
+.premium-btn-save {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    border: none !important;
+    color: white !important;
+}
+
+.premium-btn-save:hover {
+    box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+    transform: translateY(-2px);
+}
+
+.premium-upload {
+    border: 2px dashed #2d333b;
+    border-radius: 8px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #0c0d0f;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    color: #7d8590;
+    overflow: hidden;
+}
+
+.premium-upload:hover {
+    border-color: #007bff;
+    color: #fff;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner * {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.9rem !important;
+}
+
+.dash-table-container .dash-header {
+    background-color: #1f2328 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #2d333b !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    padding: 15px !important;
+}
+
+.dash-table-container .dash-cell {
+    background-color: #141619 !important;
+    color: #e6e8eb !important;
+    border-bottom: 1px solid #1f2328 !important;
+    padding: 15px !important;
+}
+
+.dash-table-container .dash-spreadsheet-inner tr:hover .dash-cell {
+    background-color: #1f2328 !important;
+}
+
+.js-plotly-plot .plotly .modebar {
+    display: none !important;
+}
+
+.print-only-header {
+    display: none;
+}
+
+@media print {
+
+    body, html {
+        background-color: white !important;
+        color: black !important;
+    }
+
+    .tracker-header, .nav-pills, .premium-card:not(.raw-data-card), .no-print, .dash-tooltip {
+        display: none !important;
+    }
+
+    .raw-data-card {
+        background: white !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+
+    .print-only-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 30px;
+        border-bottom: 2px solid black;
+        padding-bottom: 10px;
+    }
+
+    .print-only-header h1 {
+        font-size: 1.2rem;
+        color: #666 !important;
+        margin-bottom: 5px;
+    }
+
+    .print-only-header h2 {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: black !important;
+        margin-top: 0;
+    }
+
+    .dash-table-container .dash-spreadsheet-container {
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    .dash-table-container .dash-spreadsheet-inner, 
+    .dash-table-container .dash-virtualized {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .dash-table-container .dash-header {
+        background-color: #f4f4f4 !important;
+        color: black !important;
+        border-bottom: 2px solid black !important;
+    }
+    
+    .dash-table-container .dash-cell {
+        background-color: white !important;
+        color: black !important;
+        border-bottom: 1px solid #ddd !important;
+    }
+}
