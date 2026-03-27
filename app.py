@@ -16,7 +16,6 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 # --- НАСТРОЙКА ПУТЕЙ ---
@@ -215,9 +214,9 @@ tab2_content = html.Div([
 tab3_content = html.Div([
     html.Div([
         html.H2("МАССОВЫЙ АНАЛИЗ ПРОТОКОЛОВ", className="section-title"),
-        html.P("Загрузите протоколы одной дистанции для выявления Топ-20", className="section-subtitle"),
+        html.P("Добавляйте турниры один за другим для сравнения на одном экране", className="section-subtitle"),
         dbc.Row([
-            dbc.Col(dcc.Input(id="bulk-competition", type="text", placeholder="Название турнира (напр. Кубок России)", className="premium-input form-control"), width=4),
+            dbc.Col(dcc.Input(id="bulk-competition", type="text", placeholder="Название турнира (напр. Зона 2026)", className="premium-input form-control"), width=3),
             dbc.Col(dcc.Input(id="bulk-distance", type="text", placeholder="Дистанция (100м в/с)", className="premium-input form-control"), width=3),
             dbc.Col(
                 dcc.Upload(
@@ -226,27 +225,33 @@ tab3_content = html.Div([
                     multiple=True 
                 ), width=3
             ),
-            dbc.Col(dbc.Button("СГЕНЕРИРОВАТЬ", id="btn-generate-top", className="premium-btn premium-btn-save w-100"), width=2)
+            dbc.Col(dbc.Button("➕ ДОБАВИТЬ НА ЭКРАН", id="btn-generate-top", className="premium-btn premium-btn-save w-100"), width=3)
         ], className="mb-4"),
         html.Div(id="bulk-status-msg", className="text-center mb-3 no-print")
     ], className="premium-card no-print"),
 
     html.Div([
-        html.Div(id="top20-print-header", className="print-only-header"),
+        html.Div(id="kpi-comparison-window", className="mb-4 no-print", style={'display': 'none'}),
+        
         html.Div([
             dbc.Row([
-                dbc.Col(html.H2("РЕЙТИНГ ТОП-20", id="top20-title", className="section-title no-print"), width=8),
+                dbc.Col(html.H2("СРАВНЕНИЕ РЕЙТИНГОВ", className="section-title no-print"), width=6),
                 dbc.Col([
-                    dbc.Button("💾 Сохранить в PDF", id="btn-print-top20", className="premium-btn premium-btn-outline float-end"),
-                ], width=4, className="no-print"),
+                    dbc.Button("🗑️ Очистить экран", id="btn-clear-top20", className="premium-btn premium-btn-outline me-2"),
+                    dbc.Button("💾 Сохранить в PDF", id="btn-print-top20", className="premium-btn premium-btn-outline"),
+                ], width=6, className="no-print text-end"),
             ]),
-        ], className="mb-3"),
-        html.Div(id="top20-table-container")
-    ], className="premium-card raw-data-card")
+        ], className="mb-4 no-print"),
+
+        html.Div(id="top20-table-container", children=[]) 
+        
+    ], className="premium-card raw-data-card", id="print-area-top20")
 ], style={'padding': '10px'})
 
-# Приложение
+bulk_results_store = dcc.Store(id='bulk-results-store', storage_type='memory', data=[])
+
 app.layout = dbc.Container([
+    bulk_results_store,
     header,
     dbc.Tabs([
         dbc.Tab(tab1_content, label="Ввод данных", tab_id="tab-1"),
@@ -455,78 +460,177 @@ app.clientside_callback(
     prevent_initial_call=True
 )
 
+# Коллбэки Вкладки 3
 @app.callback(Output("upload-bulk-text", "children"), Input("upload-bulk-pdfs", "filename"))
 def update_bulk_upload_text(filenames):
     if filenames: return f"✅ Загружено файлов: {len(filenames)}"
-    return "📁 Выбрать файлы (можно несколько)"
+    return "📁 Выбрать файлы"
 
 @app.callback(
     [Output("bulk-status-msg", "children"),
+     Output("bulk-results-store", "data"),
      Output("top20-table-container", "children"),
-     Output("top20-title", "children"),
-     Output("top20-print-header", "children")],
-    Input("btn-generate-top", "n_clicks"),
+     Output("kpi-comparison-window", "children"),
+     Output("kpi-comparison-window", "style")],
+    [Input("btn-generate-top", "n_clicks"),
+     Input("btn-clear-top20", "n_clicks")],
     [State("bulk-competition", "value"),
      State("bulk-distance", "value"),
      State("upload-bulk-pdfs", "contents"),
-     State("upload-bulk-pdfs", "filename")]
+     State("upload-bulk-pdfs", "filename"),
+     State("bulk-results-store", "data")]
 )
-def generate_top20(n_clicks, comp_title, distance_title, list_of_contents, list_of_names):
-    if not n_clicks:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, list_of_contents, list_of_names, store_data):
+    triggered_id = ctx.triggered_id
+
+    if triggered_id == "btn-clear-top20":
+        return dbc.Alert("Экран очищен.", color="info"), [], [], "", {'display': 'none'}
+
+    data_structure = store_data or []
+    table_stack = []
+    kpi_content = ""
+    kpi_style = {'display': 'none'}
+
+    if triggered_id == "btn-generate-top":
+        if not list_of_contents:
+            return dbc.Alert("Загрузите PDF файлы!", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update
+
+        comp_label = comp_title.strip() if comp_title else "Неизвестный турнир"
+        dist_label = distance_title.strip() if distance_title else "Неизвестная дистанция"
         
-    if not list_of_contents:
-        return dbc.Alert("Загрузите PDF файлы!", color="danger"), "", "РЕЙТИНГ ТОП-20", ""
+        temp_paths = []
 
-    comp_label = comp_title.strip() if comp_title else "СВОДНЫЙ РЕЙТИНГ"
-    dist_label = distance_title.strip() if distance_title else "Неизвестная дистанция"
-    
-    temp_paths = []
-    print_header = html.Div([
-        html.H1(f"AQUATRACK PRO | {comp_label.upper()}"),
-        html.H2(f"Дистанция: {dist_label.upper()} | Топ-20"),
-        html.P(f"Дата формирования: {pd.Timestamp.now().strftime('%d.%m.%Y')}")
-    ])
+        try:
+            for i, content in enumerate(list_of_contents):
+                _, content_string = content.split(',')
+                temp_pdf = os.path.join(application_path, f"temp_bulk_{i}.pdf")
+                with open(temp_pdf, "wb") as f:
+                    f.write(base64.b64decode(content_string))
+                temp_paths.append(temp_pdf)
 
-    try:
-        for i, content in enumerate(list_of_contents):
-            _, content_string = content.split(',')
-            temp_pdf = os.path.join(application_path, f"temp_bulk_{i}.pdf")
-            with open(temp_pdf, "wb") as f:
-                f.write(base64.b64decode(content_string))
-            temp_paths.append(temp_pdf)
+            results = extract_tournament_ranking(temp_paths, limit_per_file=20)
+            
+            if not results:
+                return dbc.Alert(f"Спортсмены не найдены ({comp_label}).", color="warning"), data_structure, dash.no_update, dash.no_update, dash.no_update
 
-        results = extract_tournament_ranking(temp_paths, limit_per_file=20)
+            df = pd.DataFrame(results)
+            df = df.sort_values('СЕКУНДЫ') 
+            df = df.drop_duplicates(subset=['СПОРТСМЕН'], keep='first') 
+
+            tournament_data = {
+                'competition': comp_label,
+                'distance': dist_label,
+                'raw_results': df.to_dict('records')
+            }
+            data_structure.append(tournament_data)
+            
+            msg = dbc.Alert(f"✅ {comp_label} добавлен! Обработано файлов: {len(list_of_names)}.", color="success")
+
+        except Exception as e:
+            return dbc.Alert(f"Ошибка: {e}", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update
+            
+        finally:
+            for path in temp_paths:
+                if os.path.exists(path):
+                    os.remove(path)
+
+    for entry in data_structure:
+        display_df = pd.DataFrame(entry['raw_results']).head(20)
+        display_df.insert(0, 'МЕСТО', range(1, len(display_df) + 1))
+        display_df = display_df.drop(columns=['СЕКУНДЫ'], errors='ignore')
+
+        new_table_block = html.Div([
+            html.H3(f"{entry['competition'].upper()} | ТОП-20: {entry['distance'].upper()}", style={'marginTop': '30px', 'marginBottom': '15px'}),
+            dash_table.DataTable(
+                data=display_df.to_dict('records'),
+                style_as_list_view=True,
+                style_header={'fontWeight': 'bold'},
+                style_cell={'textAlign': 'left', 'padding': '12px'}
+            ),
+            html.Hr(style={'borderColor': '#444'})
+        ])
+        table_stack.append(new_table_block)
+
+    if len(data_structure) >= 2:
+        kpi_style = {
+            'display': 'block',
+            'background': 'linear-gradient(135deg, #2d333b 0%, #1f2328 100%)',
+            'border': '2px solid #007bff',
+            'borderRadius': '12px',
+            'padding': '25px',
+            'boxShadow': '0 8px 30px rgba(0,0,0,0.5)'
+        }
         
-        if not results:
-            return dbc.Alert("Спортсмены не найдены в загруженных файлах.", color="warning"), "", f"{comp_label.upper()} | {dist_label.upper()}", print_header
+        entry_last = data_structure[-1]
+        entry_prev = data_structure[-2]
 
-        df = pd.DataFrame(results)
-        df = df.sort_values('СЕКУНДЫ') 
-        df = df.drop_duplicates(subset=['СПОРТСМЕН'], keep='first') 
-        df = df.head(20) 
-        
-        df.insert(0, 'МЕСТО', range(1, len(df) + 1))
-        display_df = df.drop(columns=['СЕКУНДЫ'])
+        def get_year(title):
+            match = re.search(r'(20\d{2})', title)
+            return int(match.group(1)) if match else 0
 
-        table = dash_table.DataTable(
-            data=display_df.to_dict('records'),
-            style_as_list_view=True,
-            style_header={'fontWeight': 'bold'},
-            style_cell={'textAlign': 'left', 'padding': '12px'}
-        )
+        year_last = get_year(entry_last['competition'])
+        year_prev = get_year(entry_prev['competition'])
 
-        title = f"{comp_label.upper()} | ТОП-20: {dist_label.upper()}"
-        msg = dbc.Alert(f"✅ Проанализировано {len(list_of_names)} файлов. Лучшие 20 результатов выведены на экран.", color="success")
-        return msg, table, title, print_header
+        if year_last > 0 and year_prev > 0 and year_prev > year_last:
+            target_entry = entry_prev
+            base_entry = entry_last
+        else:
+            target_entry = entry_last
+            base_entry = entry_prev
 
-    except Exception as e:
-        return dbc.Alert(f"Ошибка: {e}", color="danger"), "", "РЕЙТИНГ ТОП-20", print_header
-        
-    finally:
-        for path in temp_paths:
-            if os.path.exists(path):
-                os.remove(path)
+        new_df = pd.DataFrame(target_entry['raw_results']).head(20)
+        old_df = pd.DataFrame(base_entry['raw_results']).head(20)
+
+        def calc_kpis(df):
+            if df.empty: return 0, 0, 0
+            return df.iloc[0]['СЕКУНДЫ'], df['СЕКУНДЫ'].mean(), df.iloc[-1]['СЕКУНДЫ']
+
+        nf, nm, nl = calc_kpis(new_df)
+        of, om, ol = calc_kpis(old_df)
+
+        def format_diff(new_v, old_v):
+            diff = new_v - old_v
+            if abs(diff) < 0.001: 
+                return html.Div([html.Span("≈ Стабильно", style={'color': '#a1a1a1'})])
+            
+            color = "#2ecc71" if diff < 0 else "#e74c3c"
+            arrow = "▼ Улучшение" if diff < 0 else "▲ Ухудшение"
+            plus = "+" if diff > 0 else ""
+            
+            return html.Div([
+                html.Span(f"{arrow} ({plus}{diff:.2f} сек)", style={'color': color, 'fontWeight': 'bold'})
+            ])
+
+        box_style = {'textAlign': 'center', 'background': 'rgba(0,0,0,0.2)', 'borderRadius': '8px', 'padding': '15px'}
+        label_style = {'color': '#a1a1a1', 'fontSize': '0.9rem', 'fontWeight': '600', 'marginBottom': '8px'}
+        value_style = {'color': '#ffffff', 'fontSize': '1.6rem', 'fontWeight': '700', 'marginBottom': '5px'}
+
+        kpi_title_text = f"ДИНАМИКА: {target_entry['competition'].upper()} ОТНОСИТЕЛЬНО {base_entry['competition'].upper()}"
+
+        kpi_content = html.Div([
+            html.H4(kpi_title_text, style={'textAlign': 'center', 'fontWeight': 'bold', 'marginBottom': '20px', 'color': '#fff'}),
+            dbc.Row([
+                dbc.Col(html.Div([
+                    html.Div("ВРЕМЯ ЛИДЕРА (#1)", style=label_style),
+                    html.Div(f"{new_df.iloc[0]['РЕЗУЛЬТАТ']}", style=value_style),
+                    format_diff(nf, of)
+                ], style=box_style), width=4),
+                
+                dbc.Col(html.Div([
+                    html.Div("СРЕДНЕЕ ВРЕМЯ (Топ-20)", style=label_style),
+                    html.Div(f"{nm:.2f} сек", style=value_style),
+                    format_diff(nm, om)
+                ], style=box_style), width=4),
+
+                dbc.Col(html.Div([
+                    html.Div("ВРЕМЯ ПРОХОДА (#20)", style=label_style),
+                    html.Div(f"{new_df.iloc[-1]['РЕЗУЛЬТАТ']}", style=value_style),
+                    format_diff(nl, ol)
+                ], style=box_style), width=4),
+            ], className="justify-content-center")
+        ])
+
+    return msg if triggered_id == "btn-generate-top" else dash.no_update, data_structure, table_stack, kpi_content, kpi_style
 
 app.clientside_callback(
     """
