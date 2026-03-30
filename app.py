@@ -86,8 +86,8 @@ def extract_multiple_results_from_pdf(pdf_path, athletes_str):
                             
     return results, raw_targets
 
-def extract_tournament_ranking(pdf_paths, limit_per_file=20):
-    """Сбор результатов (Топ-20)."""
+def extract_tournament_ranking(pdf_paths, limit_per_file=10):
+    """Сбор результатов (Топ-10)."""
     all_results = []
     
     for path in pdf_paths:
@@ -192,7 +192,7 @@ tab2_content = html.Div([
         html.Div(id="print-document-header", className="print-only-header"),
         html.Div(
             dcc.Graph(id='analytics-graph', config={'displayModeBar': False}),
-            className="no-print"
+            className="mb-4"
         ),
         
         html.Div([
@@ -210,7 +210,7 @@ tab2_content = html.Div([
     ], className="premium-card raw-data-card")
 ], style={'padding': '10px'})
 
-# Содержимое вкладки 3: "Рейтинги (Топ-20)"
+# Содержимое вкладки 3: "Рейтинги (Топ-10)"
 tab3_content = html.Div([
     html.Div([
         html.H2("МАССОВЫЙ АНАЛИЗ ПРОТОКОЛОВ", className="section-title"),
@@ -231,7 +231,7 @@ tab3_content = html.Div([
     ], className="premium-card no-print"),
 
     html.Div([
-        html.Div(id="kpi-comparison-window", className="mb-4 no-print", style={'display': 'none'}),
+        html.Div(id="kpi-comparison-window", className="mb-4", style={'display': 'none'}),
         
         html.Div([
             dbc.Row([
@@ -508,7 +508,7 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, list_of_c
                     f.write(base64.b64decode(content_string))
                 temp_paths.append(temp_pdf)
 
-            results = extract_tournament_ranking(temp_paths, limit_per_file=20)
+            results = extract_tournament_ranking(temp_paths, limit_per_file=10)
             
             if not results:
                 return dbc.Alert(f"Спортсмены не найдены ({comp_label}).", color="warning"), data_structure, dash.no_update, dash.no_update, dash.no_update
@@ -535,12 +535,12 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, list_of_c
                     os.remove(path)
 
     for entry in data_structure:
-        display_df = pd.DataFrame(entry['raw_results']).head(20)
+        display_df = pd.DataFrame(entry['raw_results']).head(10)
         display_df.insert(0, 'МЕСТО', range(1, len(display_df) + 1))
         display_df = display_df.drop(columns=['СЕКУНДЫ'], errors='ignore')
 
         new_table_block = html.Div([
-            html.H3(f"{entry['competition'].upper()} | ТОП-20: {entry['distance'].upper()}", style={'marginTop': '30px', 'marginBottom': '15px'}),
+            html.H3(f"{entry['competition'].upper()} | ТОП-10: {entry['distance'].upper()}", style={'marginTop': '30px', 'marginBottom': '15px'}),
             dash_table.DataTable(
                 data=display_df.to_dict('records'),
                 style_as_list_view=True,
@@ -578,8 +578,8 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, list_of_c
             target_entry = entry_last
             base_entry = entry_prev
 
-        new_df = pd.DataFrame(target_entry['raw_results']).head(20)
-        old_df = pd.DataFrame(base_entry['raw_results']).head(20)
+        new_df = pd.DataFrame(target_entry['raw_results']).head(10)
+        old_df = pd.DataFrame(base_entry['raw_results']).head(10)
 
         def calc_kpis(df):
             if df.empty: return 0, 0, 0
@@ -617,13 +617,13 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, list_of_c
                 ], style=box_style), width=4),
                 
                 dbc.Col(html.Div([
-                    html.Div("СРЕДНЕЕ ВРЕМЯ (Топ-20)", style=label_style),
+                    html.Div("СРЕДНЕЕ ВРЕМЯ (Топ-10)", style=label_style),
                     html.Div(f"{nm:.2f} сек", style=value_style),
                     format_diff(nm, om)
                 ], style=box_style), width=4),
 
                 dbc.Col(html.Div([
-                    html.Div("ВРЕМЯ ПРОХОДА (#20)", style=label_style),
+                    html.Div("ВРЕМЯ ПРОХОДА (#10)", style=label_style),
                     html.Div(f"{new_df.iloc[-1]['РЕЗУЛЬТАТ']}", style=value_style),
                     format_diff(nl, ol)
                 ], style=box_style), width=4),

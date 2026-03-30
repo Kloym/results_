@@ -270,4 +270,71 @@ body {
         color: black !important;
         border-bottom: 1px solid #ddd !important;
     }
+    
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+
+.comparison-kpi-card {
+    background: linear-gradient(135deg, #2d333b 0%, #1f2328 100%);
+    border: 2px solid #007bff;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+.kpi-analysis-title {
+    color: #ffffff;
+    font-size: 1.4rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 15px;
+}
+
+.kpi-row {
+    justify-content: center;
+}
+
+.kpi-box {
+    text-align: center;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px;
+}
+
+.kpi-label {
+    color: #a1a1a1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.kpi-value {
+    color: #ffffff;
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.diff-better { color: #2ecc71 !important; font-size: 1rem; }
+.diff-worse { color: #e74c3c !important; font-size: 1rem; }
+.diff-stable { color: #a1a1a1 !important; font-size: 1rem; }
+
+@media print {
+    .comparison-kpi-card {
+        background: none !important;
+        border: 1px solid #ccc !important;
+        color: #000 !important;
+        box-shadow: none !important;
+        padding: 10px !important;
+    }
 }
