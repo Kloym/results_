@@ -25,7 +25,7 @@ except Exception as e:
     input("\nНажмите Enter, чтобы закрыть окно...")
     sys.exit(1)
 
-# --- СЛОВАРИ И ФУНКЦИИ ---
+
 FINA_RECORDS = {
     "50": {
         "М": {
@@ -61,23 +61,38 @@ FINA_RECORDS = {
     }
 }
 
-def calculate_fina_points(seconds, distance_str, pool_type="50"):
+def calculate_fina_points(seconds, distance_str, pool_type="50", explicit_gender=None):
     if seconds <= 0: return 0
-    dist_upper = distance_str.strip().upper()
-    pool_key = str(pool_type)
-    is_female = any(marker in dist_upper for marker in [" Ж", "ЖЕН", "ДЕВ", "(Ж)", "Ж."])
-    gender = "Ж" if is_female else "М"
+    dist_upper = str(distance_str).strip().upper()
+    en_chars = "ABCEHKMOPTX"
+    ru_chars = "АВСЕНКМОРТХ"
+    trans = str.maketrans(en_chars, ru_chars)
+    dist_upper = dist_upper.translate(trans)
+
+    pool_key = str(pool_type).strip()
+    if pool_key not in FINA_RECORDS:
+        pool_key = "50"
+    if explicit_gender in ["М", "Ж"]:
+        gender = explicit_gender
+    else:
+        is_female = any(marker in dist_upper for marker in [" Ж", "ЖЕН", "ДЕВ", "(Ж)", "Ж."])
+        gender = "Ж" if is_female else "М"
+
+    records_sub = FINA_RECORDS.get(pool_key, FINA_RECORDS["50"])[gender]
 
     base_time = 0
-    records_sub = FINA_RECORDS.get(pool_key, FINA_RECORDS["50"])[gender]
-    
-    for key in records_sub:
-        if key in dist_upper:
-            base_time = records_sub[key]
+    clean_input = dist_upper.replace(" ", "")
+
+    for key, time_val in records_sub.items():
+        clean_key = key.replace(" ", "").translate(trans)
+        if clean_key in clean_input:
+            base_time = time_val
             break
-            
-    if base_time == 0: return 0
-    return int(1000 * ((base_time / seconds) ** 3))
+
+    if base_time > 0:
+        return int(1000 * ((base_time / seconds) ** 3))
+    
+    return 0
 
 def resource_path(relative_path):
     try:
@@ -159,7 +174,6 @@ def init_db():
     conn.close()
     print(" ✅ База данных готова к работе!")
 
-# Перехватываем ошибки при создании базы
 try:
     init_db()
 except Exception as e:
@@ -217,7 +231,7 @@ def extract_multiple_results_from_pdf(pdf_path, athletes_str):
                             
     return results, raw_targets
 
-def extract_tournament_ranking(pdf_paths, distance_str, limit_per_file=10, pool_type="50"):
+def extract_tournament_ranking(pdf_paths, distance_str, limit_per_file=10, pool_type="50", gender="М"):
     all_results = []
     
     for path in pdf_paths:
@@ -248,7 +262,7 @@ def extract_tournament_ranking(pdf_paths, distance_str, limit_per_file=10, pool_
                         if valid_times:
                             final_time = valid_times[-1]
                             seconds = time_to_sec(final_time)
-                            pts = calculate_fina_points(seconds, distance_str, pool_type)
+                            pts = calculate_fina_points(seconds, distance_str, pool_type, gender)
                             file_results.append({
                                 'СПОРТСМЕН': f"{last_name} {first_name}",
                                 'РЕЗУЛЬТАТ': final_time,
@@ -287,6 +301,7 @@ tab1_content = html.Div([
             dbc.Col(dcc.Input(id="input-date", type="text", placeholder="ДД.ММ.ГГГГ", className="premium-input form-control", maxLength=10), width=2),
             dbc.Col(dcc.Input(id="input-athlete", type="text", placeholder="Фамилии (через запятую)", className="premium-input form-control", list='athlete-suggestions'), width=2),
             dbc.Col(dcc.Input(id="input-distance", type="text", placeholder="Дистанция", className="premium-input form-control"), width=2),
+            dbc.Col(dbc.Select(id="input-gender", options=[{"label": "М", "value": "М"}, {"label": "Ж", "value": "Ж"}], value="М", className="premium-input"), width=1),
             dbc.Col(dbc.Select(id="input-pool", options=[{"label": "50м", "value": "50"}, {"label": "25м", "value": "25"}], value="50", className="premium-input"), width=1),
             dbc.Col(dcc.Input(id="input-manual-result", type="text", placeholder="Время (ручн.)", className="premium-input form-control"), width=2),
             dbc.Col(
@@ -294,7 +309,7 @@ tab1_content = html.Div([
                     id='upload-pdf',
                     children=html.Div(['📁 PDF (или ручной)'], id='upload-pdf-text', className="premium-upload"),
                     multiple=False
-                ), width=3
+                ), width=2
             ),
         ], className="mb-4"),
         dbc.Button("ДОБАВИТЬ В БАЗУ ДАННЫХ", id="btn-add", className="premium-btn premium-btn-save w-100 mb-3"),
@@ -350,7 +365,8 @@ tab3_content = html.Div([
         dbc.Row([
             dbc.Col(dcc.Input(id="bulk-competition", type="text", placeholder="Название турнира", className="premium-input form-control"), width=3),
             dbc.Col(dcc.Input(id="bulk-distance", type="text", placeholder="Дистанция (100м в/с)", className="premium-input form-control"), width=2),
-            dbc.Col(dbc.Select(id="bulk-pool", options=[{"label": "50м", "value": "50"}, {"label": "25м", "value": "25"}], value="50", className="premium-input"), width=2),
+            dbc.Col(dbc.Select(id="bulk-gender", options=[{"label": "М", "value": "М"}, {"label": "Ж", "value": "Ж"}], value="М", className="premium-input"), width=1),
+            dbc.Col(dbc.Select(id="bulk-pool", options=[{"label": "50м", "value": "50"}, {"label": "25м", "value": "25"}], value="50", className="premium-input"), width=1),
             dbc.Col(
                 dcc.Upload(
                     id='upload-bulk-pdfs',
@@ -429,11 +445,12 @@ def update_upload_text(filename):
     [State("input-date", "value"),
      State("input-athlete", "value"),
      State("input-distance", "value"),
+     State("input-gender", "value"),
      State("input-pool", "value"),
      State("upload-pdf", "contents"),
      State("input-manual-result", "value")]
 )
-def process_save_and_display_recent(n_clicks, active_tab, date, athlete, distance, pool_type, pdf_contents, manual_result):
+def process_save_and_display_recent(n_clicks, active_tab, date, athlete, distance, gender, pool_type, pdf_contents, manual_result):
     msg = ""
     reset_pdf = dash.no_update
     reset_manual = dash.no_update
@@ -474,7 +491,7 @@ def process_save_and_display_recent(n_clicks, active_tab, date, athlete, distanc
                     for name_upper, res_time in results_dict.items():
                         pretty_name = name_upper.title()
                         seconds = time_to_sec(res_time) 
-                        pts = calculate_fina_points(seconds, distance.strip(), pool_type)
+                        pts = calculate_fina_points(seconds, distance.strip(), pool_type, gender)
                         new_rows.append({
                             'ДАТА': date, 
                             'СПОРТСМЕН': pretty_name, 
@@ -627,12 +644,13 @@ def update_bulk_upload_text(filenames):
      Input("btn-clear-top20", "n_clicks")],
     [State("bulk-competition", "value"),
      State("bulk-distance", "value"),
+     State("bulk-gender", "value"),
      State("bulk-pool", "value"),
      State("upload-bulk-pdfs", "contents"),
      State("upload-bulk-pdfs", "filename"),
      State("bulk-results-store", "data")]
 )
-def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type, list_of_contents, list_of_names, store_data):
+def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, gender, pool_type, list_of_contents, list_of_names, store_data):
     triggered_id = ctx.triggered_id
 
     if triggered_id == "btn-clear-top20":
@@ -660,7 +678,7 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type
                     f.write(base64.b64decode(content_string))
                 temp_paths.append(temp_pdf)
 
-            results = extract_tournament_ranking(temp_paths, dist_label, limit_per_file=10, pool_type=pool_type)
+            results = extract_tournament_ranking(temp_paths, dist_label, limit_per_file=10, pool_type=pool_type, gender=gender)
             
             if not results:
                 return dbc.Alert(f"Спортсмены не найдены ({comp_label}).", color="warning"), data_structure, dash.no_update, dash.no_update, dash.no_update
@@ -672,6 +690,7 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type
             tournament_data = {
                 'competition': comp_label,
                 'distance': dist_label,
+                'gender': gender,
                 'pool': pool_type,
                 'raw_results': df.to_dict('records')
             }
@@ -692,7 +711,8 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type
         display_df.insert(0, 'МЕСТО', range(1, len(display_df) + 1))
         display_df = display_df.drop(columns=['СЕКУНДЫ'], errors='ignore')
 
-        pool_badge = f" ({entry.get('pool', '50')}м)"
+        gender_badge = entry.get('gender', 'М')
+        pool_badge = f" ({gender_badge}, {entry.get('pool', '50')}м)"
         new_table_block = html.Div([
             html.H3(f"{entry['competition'].upper()} | ТОП-10: {entry['distance'].upper()}{pool_badge}", style={'marginTop': '30px', 'marginBottom': '15px'}),
             dash_table.DataTable(
@@ -738,8 +758,8 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type
         def calc_kpis(df):
             if df.empty: return 0, 0, 0, 0, 0, 0
             return (
-                df.iloc[0]['СЕКУНДЫ'], df['СЕКУНДЫ'].mean(), df.iloc[-1]['СЕКУНДЫ'],
-                df.iloc[0].get('ОЧКИ', 0), df.get('ОЧКИ', pd.Series([0])).mean(), df.iloc[-1].get('ОЧКИ', 0)
+                df.iloc[0]['СЕКУНДЫ'], df['СЕКУНДЫ'].median(), df.iloc[-1]['СЕКУНДЫ'],
+                df.iloc[0].get('ОЧКИ', 0), df.get('ОЧКИ', pd.Series([0])).median(), df.iloc[-1].get('ОЧКИ', 0)
             )
 
         nf, nm, nl, pf, pm, pl = calc_kpis(new_df)
@@ -790,7 +810,7 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, pool_type
                 ], style=box_style), width=4),
                 
                 dbc.Col(html.Div([
-                    html.Div("СРЕДНЕЕ ВРЕМЯ (Топ-10)", style=label_style),
+                    html.Div("МЕДИАНА (Плотность Топ-10)", style=label_style),
                     html.Div(f"{nm:.2f} сек", style=value_style),
                     format_diff(nm, om),
                     html.Div(f"⭐ {int(pm)} FINA", style=points_style),
