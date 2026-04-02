@@ -10,20 +10,16 @@ def guess_gender_smart(fullname):
     
     surname = parts[0].lower()
     fname = parts[1].lower()
-    
-    # 1. 100% Мужские фамилии
+
     if surname.endswith(('ов', 'ев', 'ёв', 'ин', 'ский', 'ый')):
         return "М"
-    # 2. 100% Женские фамилии
     if surname.endswith(('ова', 'ева', 'ёва', 'ина', 'ская', 'ая')):
         return "Ж"
-        
-    # 3. Мужские имена-исключения на А/Я
+
     male_exceptions = ['илья', 'никита', 'данила', 'савва', 'лука', 'кузьма', 'добрыня', 'лев']
     if fname in male_exceptions:
         return "М"
-        
-    # 4. Обычные женские имена (если фамилия нетипичная, например украинская на -енко)
+
     if fname.endswith('а') or fname.endswith('я'):
         return "Ж"
         
@@ -44,13 +40,11 @@ try:
         dist = str(row[2]).strip()
         pool = str(row[3]).strip()
         athlete = str(row[4]).strip()
-        
-        # Лечим визуальную опечатку с точками (1.00.57 -> 1:00.57)
+
         clean_result_str = result_str
         if clean_result_str.count('.') == 2:
             clean_result_str = clean_result_str.replace('.', ':', 1)
-            
-        # Лечим опечатку дистанции (1500 м М -> 1500 в/с)
+
         if "1500" in dist and "В/С" not in dist.upper() and "КРОЛЬ" not in dist.upper():
             dist = "1500 в/с"
         
