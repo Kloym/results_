@@ -39,7 +39,7 @@ FINA_RECORDS = {
             "50М В/С": 23.61, "100М В/С": 51.71, "200М В/С": 112.23, "400М В/С": 235.38, "800М В/С": 484.79, "1500М В/С": 920.48,
             "50М НА СПИНЕ": 26.86, "100М НА СПИНЕ": 57.13, "200М НА СПИНЕ": 123.14,
             "50М БРАСС": 29.16, "100М БРАСС": 64.13, "200М БРАСС": 137.55,
-            "50М БАТТЕРФЛЯЙ": 24.43, "100М БАТТЕРФЛЯЙ": 55.09, "200М БАТТЕРФЛЯЙ": 121.81,
+            "50М БАТТЕРФЛЯЙ": 24.43, "100М БАТТЕРФЛЯЙ": 54.60, "200М БАТТЕРФЛЯЙ": 121.81,
             "200М КОМПЛЕКС": 125.70, "400М КОМПЛЕКС": 263.65
         }
     },
@@ -63,15 +63,15 @@ FINA_RECORDS = {
 
 def calculate_fina_points(seconds, distance_str, pool_type="50", explicit_gender=None):
     if seconds <= 0: return 0
+    
     dist_upper = str(distance_str).strip().upper()
-    en_chars = "ABCEHKMOPTX"
-    ru_chars = "АВСЕНКМОРТХ"
-    trans = str.maketrans(en_chars, ru_chars)
+    trans = str.maketrans("ABCEHKMOPTX", "АВСЕНКМОРТХ")
     dist_upper = dist_upper.translate(trans)
 
     pool_key = str(pool_type).strip()
     if pool_key not in FINA_RECORDS:
         pool_key = "50"
+
     if explicit_gender in ["М", "Ж"]:
         gender = explicit_gender
     else:
@@ -80,18 +80,29 @@ def calculate_fina_points(seconds, distance_str, pool_type="50", explicit_gender
 
     records_sub = FINA_RECORDS.get(pool_key, FINA_RECORDS["50"])[gender]
 
+    import re
+    def clean_str(s):
+        s = s.translate(trans)
+        s = re.sub(r'[^А-ЯЁ0-9]', '', s)
+        s = re.sub(r'(\d+)М', r'\1', s)
+        s = s.replace("ВОЛЬНЫЙ", "ВС").replace("КРОЛЬ", "ВС")
+        s = s.replace("НАСПИНЕ", "СПИНА").replace("СПИНЕ", "СПИНА").replace("НС", "СПИНА")
+        s = s.replace("БАТТЕРФЛЯЙ", "БАТТ").replace("ДЕЛЬФИН", "БАТТ")
+        s = s.replace("КОМПЛЕКСНОЕ", "КОМПЛЕКС").replace("КП", "КОМПЛЕКС")
+        return s
+
+    clean_input = clean_str(dist_upper)
     base_time = 0
-    clean_input = dist_upper.replace(" ", "")
 
     for key, time_val in records_sub.items():
-        clean_key = key.replace(" ", "").translate(trans)
-        if clean_key in clean_input:
+        clean_key = clean_str(key)
+        if clean_key == clean_input or clean_input in clean_key:
             base_time = time_val
             break
 
     if base_time > 0:
         return int(1000 * ((base_time / seconds) ** 3))
-    
+
     return 0
 
 def resource_path(relative_path):
@@ -282,6 +293,10 @@ def extract_tournament_ranking(pdf_paths, distance_str, limit_per_file=10, pool_
 
 def time_to_sec(t_str):
     if not isinstance(t_str, str): return 0
+    t_str = str(t_str).strip()
+    if t_str.count('.') == 2:
+        t_str = t_str.replace('.', ':', 1)
+        
     parts = t_str.split(':')
     try:
         if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
