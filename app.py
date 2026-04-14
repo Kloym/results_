@@ -260,6 +260,16 @@ def extract_tournament_ranking(pdf_paths, distance_str, limit_per_file=10, pool_
                     if name_match and time_match:
                         last_name = name_match.group(1).capitalize()
                         first_name = name_match.group(2)
+                        stop_words = {
+                            "РМ", "РЕ", "РР", "РМЮ", "РЕЮ", "РРЮ",
+                            "ОТКРЫТЫЕ", "ФИНАЛ", "ПОЛУФИНАЛ", "ЭСТАФЕТА",
+                            "ВОЛЬНЫЙ", "СТИЛЬ", "БРАСС", "БАТТЕРФЛЯЙ", "КОМПЛЕКС", 
+                            "ЮНОШИ", "ДЕВУШКИ", "МУЖЧИНЫ", "ЖЕНЩИНЫ", "ЮНИОРЫ", "ЮНИОРКИ",
+                            "РЕКОРД", "ОЧКИ", "FINA"
+                        }
+                        
+                        if name_match.group(1).upper() in stop_words or name_match.group(2).upper() in stop_words:
+                            continue
                         
                         name_pos = line.find(name_match.group(1))
                         
