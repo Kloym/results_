@@ -3,3 +3,4 @@ poetry.lock
 AquaTrack_Pro.exe
 TODO
 __pycache__/
+venv/

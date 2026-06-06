@@ -7,7 +7,7 @@ print("="*60)
 
 try:
     import dash
-    from dash import dcc, html, dash_table, Input, Output, State, ctx
+    from dash import dcc, html, dash_table, Input, Output, State, ctx, ALL
     import dash_bootstrap_components as dbc
     import pandas as pd
     import pdfplumber
@@ -39,7 +39,7 @@ FINA_RECORDS = {
             "50М В/С": 23.61, "100М В/С": 51.71, "200М В/С": 112.23, "400М В/С": 235.38, "800М В/С": 484.79, "1500М В/С": 920.48,
             "50М НА СПИНЕ": 26.86, "100М НА СПИНЕ": 57.13, "200М НА СПИНЕ": 123.14,
             "50М БРАСС": 29.16, "100М БРАСС": 64.13, "200М БРАСС": 137.55,
-            "50М БАТТЕРФЛЯЙ": 24.43, "100М БАТТЕРФЛЯЙ": 54.60, "200М БАТТЕРФЛЯЙ": 121.81,
+            "50М БАТТЕРФЛЯЙ": 24.43, "100М БАТТЕРФЛЯЙ": 54.33, "200М БАТТЕРФЛЯЙ": 121.81,
             "200М КОМПЛЕКС": 125.70, "400М КОМПЛЕКС": 263.65
         }
     },
@@ -406,6 +406,10 @@ tab3_content = html.Div([
 
     html.Div([
         html.Div(id="kpi-comparison-window", className="mb-4", style={'display': 'none'}),
+
+        html.Div(id="btn-reopen-modal-container", className="mb-4 text-center", style={'display': 'none'}, children=[
+            dbc.Button("📊 Развернуть сравнение 3-х лет", id="btn-reopen-modal", className="premium-btn w-100", style={'backgroundColor': '#007bff'})
+        ]),
         
         html.Div([
             dbc.Row([
@@ -419,7 +423,21 @@ tab3_content = html.Div([
 
         html.Div(id="top20-table-container", children=[]) 
         
-    ], className="premium-card raw-data-card", id="print-area-top20")
+    ], className="premium-card raw-data-card", id="print-area-top20"),
+
+    # Скрытое модальное окно для 3-х турниров
+    dbc.Modal(
+        [
+            dbc.ModalHeader(
+                dbc.ModalTitle("📊 АНАЛИЗ | СРАВНЕНИЕ 3-Х ЭТАПОВ", style={'fontWeight': '800', 'letterSpacing': '1px', 'color': '#ffffff'}),
+                style={'backgroundColor': '#0d1117', 'borderBottom': '1px solid #30363d', 'padding': '20px 40px'},
+            ),
+            dbc.ModalBody(id="modal-compare-3-body", style={'backgroundColor': '#010409', 'padding': '30px 40px'}),
+        ],
+        id="modal-compare-3",
+        fullscreen=True,
+        is_open=False,
+    ),
 ], style={'padding': '10px'})
 
 bulk_results_store = dcc.Store(id='bulk-results-store', storage_type='memory', data=[])
@@ -664,9 +682,16 @@ def update_bulk_upload_text(filenames):
      Output("bulk-results-store", "data"),
      Output("top20-table-container", "children"),
      Output("kpi-comparison-window", "children"),
-     Output("kpi-comparison-window", "style")],
+     Output("kpi-comparison-window", "style"),
+     Output("modal-compare-3", "is_open"),
+     Output("modal-compare-3-body", "children"),
+     Output("btn-reopen-modal-container", "style"),
+     Output("upload-bulk-pdfs", "contents"),
+     Output("upload-bulk-pdfs", "filename")],
     [Input("btn-generate-top", "n_clicks"),
-     Input("btn-clear-top20", "n_clicks")],
+     Input("btn-clear-top20", "n_clicks"),
+     Input("btn-reopen-modal", "n_clicks"),
+     Input({'type': 'btn-swap', 'index': ALL}, "n_clicks")],
     [State("bulk-competition", "value"),
      State("bulk-distance", "value"),
      State("bulk-gender", "value"),
@@ -675,24 +700,36 @@ def update_bulk_upload_text(filenames):
      State("upload-bulk-pdfs", "filename"),
      State("bulk-results-store", "data")]
 )
-def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, gender, pool_type, list_of_contents, list_of_names, store_data):
+def manage_top20(gen_clicks, clear_clicks, reopen_clicks, swap_clicks, comp_title, distance_title, gender, pool_type, list_of_contents, list_of_names, store_data):
     triggered_id = ctx.triggered_id
+    msg = dash.no_update
+    is_modal_open = dash.no_update
 
+    reset_contents = dash.no_update
+    reset_filename = dash.no_update
+    
     if triggered_id == "btn-clear-top20":
-        return dbc.Alert("Экран очищен.", color="info"), [], [], "", {'display': 'none'}
+        return dbc.Alert("Экран очищен.", color="info"), [], [], "", {'display': 'none'}, False, "", {'display': 'none'}, None, None
 
     data_structure = store_data or []
-    table_stack = []
-    kpi_content = ""
-    kpi_style = {'display': 'none'}
 
-    if triggered_id == "btn-generate-top":
+    if isinstance(triggered_id, dict) and triggered_id.get('type') == 'btn-swap':
+        idx_to_remove = triggered_id['index']
+        if 0 <= idx_to_remove < len(data_structure):
+            data_structure.pop(idx_to_remove)
+        is_modal_open = False
+        msg = dbc.Alert("Турнир удален. Загрузите новый для замены.", color="info")
+
+    elif triggered_id == "btn-reopen-modal":
+        is_modal_open = True
+        msg = dash.no_update
+
+    elif triggered_id == "btn-generate-top":
         if not list_of_contents:
-            return dbc.Alert("Загрузите PDF файлы!", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update
+            return dbc.Alert("Загрузите PDF файлы!", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         comp_label = comp_title.strip() if comp_title else "Неизвестный турнир"
         dist_label = distance_title.strip() if distance_title else "Неизвестная дистанция"
-        
         temp_paths = []
 
         try:
@@ -706,7 +743,7 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, gender, p
             results = extract_tournament_ranking(temp_paths, dist_label, limit_per_file=10, pool_type=pool_type, gender=gender)
             
             if not results:
-                return dbc.Alert(f"Спортсмены не найдены ({comp_label}).", color="warning"), data_structure, dash.no_update, dash.no_update, dash.no_update
+                return dbc.Alert(f"Спортсмены не найдены ({comp_label}).", color="warning"), data_structure, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
             df = pd.DataFrame(results)
             df = df.sort_values('СЕКУНДЫ') 
@@ -719,140 +756,155 @@ def manage_top20(gen_clicks, clear_clicks, comp_title, distance_title, gender, p
                 'pool': pool_type,
                 'raw_results': df.to_dict('records')
             }
+            
             data_structure.append(tournament_data)
             
-            msg = dbc.Alert(f"✅ {comp_label} добавлен! Обработано файлов: {len(list_of_names)}.", color="success")
+            if len(data_structure) > 3:
+                data_structure = data_structure[-3:]
+                
+            if len(data_structure) == 3:
+                is_modal_open = True
+
+            msg = dbc.Alert(f"✅ {comp_label} добавлен!", color="success")
+
+            reset_contents = None
+            reset_filename = None
 
         except Exception as e:
-            return dbc.Alert(f"Ошибка: {e}", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update
-            
+            return dbc.Alert(f"Ошибка: {e}", color="danger"), data_structure, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
         finally:
             for path in temp_paths:
                 if os.path.exists(path):
                     os.remove(path)
 
-    for entry in data_structure:
-        display_df = pd.DataFrame(entry['raw_results']).head(10)
-        display_df.insert(0, 'МЕСТО', range(1, len(display_df) + 1))
-        display_df = display_df.drop(columns=['СЕКУНДЫ'], errors='ignore')
+    def calc_kpis(df):
+        if df.empty: return 0, 0, 0, 0, 0, 0
+        return (
+            df.iloc[0]['СЕКУНДЫ'], df['СЕКУНДЫ'].median(), df.iloc[-1]['СЕКУНДЫ'],
+            df.iloc[0].get('ОЧКИ', 0), df.get('ОЧКИ', pd.Series([0])).median(), df.iloc[-1].get('ОЧКИ', 0)
+        )
 
-        gender_badge = entry.get('gender', 'М')
-        pool_badge = f" ({gender_badge}, {entry.get('pool', '50')}м)"
-        new_table_block = html.Div([
-            html.H3(f"{entry['competition'].upper()} | ТОП-10: {entry['distance'].upper()}{pool_badge}", style={'marginTop': '30px', 'marginBottom': '15px'}),
-            dash_table.DataTable(
-                data=display_df.to_dict('records'),
-                style_as_list_view=True,
-                style_header={'fontWeight': 'bold'},
-                style_cell={'textAlign': 'left', 'padding': '12px'}
-            ),
-            html.Hr(style={'borderColor': '#444'})
-        ])
-        table_stack.append(new_table_block)
+    def format_diff(new_v, old_v):
+        diff = new_v - old_v
+        if abs(diff) < 0.001: return html.Div([html.Span("≈ Стабильно", style={'color': '#8b949e'})])
+        color, arrow = ("#3fb950", "▼ Улучшение") if diff < 0 else ("#f85149", "▲ Ухудшение")
+        return html.Div([html.Span(f"{arrow} ({'+' if diff > 0 else ''}{diff:.2f} сек)", style={'color': color, 'fontWeight': 'bold', 'fontSize': '0.9rem'})])
 
-    if len(data_structure) >= 2:
-        kpi_style = {
-            'display': 'block',
-            'background': 'linear-gradient(135deg, #2d333b 0%, #1f2328 100%)',
-            'border': '2px solid #007bff',
-            'borderRadius': '12px',
-            'padding': '25px',
-            'boxShadow': '0 8px 30px rgba(0,0,0,0.5)'
-        }
-        
-        entry_last = data_structure[-1]
-        entry_prev = data_structure[-2]
+    def format_points_diff(new_p, old_p):
+        diff = int(new_p - old_p)
+        if diff == 0: return html.Div([html.Span("≈ 0 очков", style={'color': '#8b949e', 'fontSize': '0.85rem'})])
+        color, arrow = ("#3fb950", "▲") if diff > 0 else ("#f85149", "▼")
+        return html.Div([html.Span(f"{arrow} {'+' if diff > 0 else ''}{diff} очков", style={'color': color, 'fontWeight': 'bold', 'fontSize': '0.85rem'})])
 
-        def get_year(title):
-            match = re.search(r'(20\d{2})', title)
-            return int(match.group(1)) if match else 0
+    box_style = {'textAlign': 'center', 'background': 'rgba(255,255,255,0.03)', 'borderRadius': '10px', 'padding': '15px', 'border': '1px solid #30363d'}
+    label_style = {'color': '#8b949e', 'fontSize': '0.8rem', 'fontWeight': '700', 'letterSpacing': '1px', 'marginBottom': '8px'}
+    value_style = {'color': '#ffffff', 'fontSize': '1.5rem', 'fontWeight': '800', 'marginBottom': '4px'}
+    points_style = {'color': '#e3b341', 'fontSize': '1.1rem', 'fontWeight': '700', 'marginTop': '8px', 'marginBottom': '2px'}
 
-        year_last = get_year(entry_last['competition'])
-        year_prev = get_year(entry_prev['competition'])
-
-        if year_last > 0 and year_prev > 0 and year_prev > year_last:
-            target_entry = entry_prev
-            base_entry = entry_last
-        else:
-            target_entry = entry_last
-            base_entry = entry_prev
-
+    def create_kpi_block(target_entry, base_entry):
         new_df = pd.DataFrame(target_entry['raw_results']).head(10)
         old_df = pd.DataFrame(base_entry['raw_results']).head(10)
-
-        def calc_kpis(df):
-            if df.empty: return 0, 0, 0, 0, 0, 0
-            return (
-                df.iloc[0]['СЕКУНДЫ'], df['СЕКУНДЫ'].median(), df.iloc[-1]['СЕКУНДЫ'],
-                df.iloc[0].get('ОЧКИ', 0), df.get('ОЧКИ', pd.Series([0])).median(), df.iloc[-1].get('ОЧКИ', 0)
-            )
-
         nf, nm, nl, pf, pm, pl = calc_kpis(new_df)
         of, om, ol, opf, opm, opl = calc_kpis(old_df)
-
-        def format_diff(new_v, old_v):
-            diff = new_v - old_v
-            if abs(diff) < 0.001: 
-                return html.Div([html.Span("≈ Стабильно", style={'color': '#a1a1a1'})])
-            
-            color = "#2ecc71" if diff < 0 else "#e74c3c"
-            arrow = "▼ Улучшение" if diff < 0 else "▲ Ухудшение"
-            plus = "+" if diff > 0 else ""
-            
-            return html.Div([
-                html.Span(f"{arrow} ({plus}{diff:.2f} сек)", style={'color': color, 'fontWeight': 'bold'})
-            ])
-
-        def format_points_diff(new_p, old_p):
-            diff = int(new_p - old_p)
-            if diff == 0:
-                return html.Div([html.Span("≈ 0 очков", style={'color': '#a1a1a1', 'fontSize': '0.85rem'})])
-            
-            color = "#2ecc71" if diff > 0 else "#e74c3c"
-            arrow = "▲" if diff > 0 else "▼"
-            plus = "+" if diff > 0 else ""
-            
-            return html.Div([
-                html.Span(f"{arrow} {plus}{diff} очков", style={'color': color, 'fontWeight': 'bold', 'fontSize': '0.85rem'})
-            ])
-
-        box_style = {'textAlign': 'center', 'background': 'rgba(0,0,0,0.2)', 'borderRadius': '8px', 'padding': '15px'}
-        label_style = {'color': '#a1a1a1', 'fontSize': '0.9rem', 'fontWeight': '600', 'marginBottom': '8px'}
-        value_style = {'color': '#ffffff', 'fontSize': '1.6rem', 'fontWeight': '700', 'marginBottom': '5px'}
-        points_style = {'color': '#f39c12', 'fontSize': '1.2rem', 'fontWeight': '700', 'marginTop': '12px', 'marginBottom': '2px'}
-
-        kpi_title_text = f"ДИНАМИКА: {target_entry['competition'].upper()} ОТНОСИТЕЛЬНО {base_entry['competition'].upper()}"
-
-        kpi_content = html.Div([
-            html.H4(kpi_title_text, style={'textAlign': 'center', 'fontWeight': 'bold', 'marginBottom': '20px', 'color': '#fff'}),
+        
+        t_name = str(target_entry['competition']).split()[-1]
+        b_name = str(base_entry['competition']).split()[-1]
+        
+        return html.Div([
+            html.H5(f"📉 Динамика: {b_name} ➔ {t_name}", style={'color': '#c9d1d9', 'textAlign': 'center', 'fontWeight': 'bold', 'marginBottom': '15px'}),
             dbc.Row([
-                dbc.Col(html.Div([
-                    html.Div("ВРЕМЯ ЛИДЕРА (#1)", style=label_style),
-                    html.Div(f"{new_df.iloc[0]['РЕЗУЛЬТАТ']}", style=value_style),
-                    format_diff(nf, of),
-                    html.Div(f"⭐ {int(pf)} FINA", style=points_style),
-                    format_points_diff(pf, opf)
-                ], style=box_style), width=4),
-                
-                dbc.Col(html.Div([
-                    html.Div("МЕДИАНА (Плотность Топ-10)", style=label_style),
-                    html.Div(f"{nm:.2f} сек", style=value_style),
-                    format_diff(nm, om),
-                    html.Div(f"⭐ {int(pm)} FINA", style=points_style),
-                    format_points_diff(pm, opm)
-                ], style=box_style), width=4),
+                dbc.Col(html.Div([html.Div("ЛИДЕР", style=label_style), html.Div(f"{new_df.iloc[0]['РЕЗУЛЬТАТ']}", style=value_style), format_diff(nf, of), html.Div(f"⭐ {int(pf)} FINA", style=points_style), format_points_diff(pf, opf)], style=box_style), width=4),
+                dbc.Col(html.Div([html.Div("МЕДИАНА", style=label_style), html.Div(f"{nm:.2f}с", style=value_style), format_diff(nm, om), html.Div(f"⭐ {int(pm)} FINA", style=points_style), format_points_diff(pm, opm)], style=box_style), width=4),
+                dbc.Col(html.Div([html.Div("ЗАМЫКАЮЩИЙ", style=label_style), html.Div(f"{new_df.iloc[-1]['РЕЗУЛЬТАТ']}", style=value_style), format_diff(nl, ol), html.Div(f"⭐ {int(pl)} FINA", style=points_style), format_points_diff(pl, opl)], style=box_style), width=4),
+            ])
+        ], style={'background': '#161b22', 'border': '1px solid #30363d', 'borderRadius': '16px', 'padding': '20px', 'boxShadow': '0 4px 15px rgba(0,0,0,0.3)'})
 
-                dbc.Col(html.Div([
-                    html.Div("ВРЕМЯ ПРОХОДА (#10)", style=label_style),
-                    html.Div(f"{new_df.iloc[-1]['РЕЗУЛЬТАТ']}", style=value_style),
-                    format_diff(nl, ol),
-                    html.Div(f"⭐ {int(pl)} FINA", style=points_style),
-                    format_points_diff(pl, opl)
-                ], style=box_style), width=4),
-            ], className="justify-content-center")
+    table_stack = []
+    kpi_content = ""
+    kpi_style = {'display': 'none'}
+    modal_body = ""
+    reopen_btn_style = {'display': 'none'}
+
+    if len(data_structure) == 3:
+        reopen_btn_style = {'display': 'block'} 
+        modal_cols = []
+        
+        for i, entry in enumerate(data_structure):
+            df_modal = pd.DataFrame(entry['raw_results']).head(10)
+            df_modal.insert(0, 'МЕСТО', range(1, len(df_modal) + 1))
+            df_modal = df_modal.drop(columns=['СЕКУНДЫ'], errors='ignore')
+
+            df_calc = pd.DataFrame(entry['raw_results']).head(10)
+            med_sec = df_calc['СЕКУНДЫ'].median() if not df_calc.empty else 0
+            lead_res = df_modal.iloc[0]['РЕЗУЛЬТАТ'] if not df_modal.empty else "-"
+
+            col_content = html.Div([
+                dbc.Button("🔄 ЗАМЕНИТЬ ФАЙЛ", id={'type': 'btn-swap', 'index': i}, color="info", outline=True, size="sm", className="w-100 mb-3 fw-bold", style={'borderRadius': '8px', 'letterSpacing': '1px'}),
+                html.H3(f"{entry['competition'].upper()}", className="text-center mb-1", style={'color': '#ffffff', 'fontWeight': '800', 'letterSpacing': '0.5px'}),
+                
+                html.Div([
+                    html.Span("Лидер: ", style={'color': '#8b949e', 'fontSize': '0.9rem'}),
+                    html.Span(f"{lead_res}", style={'color': '#58a6ff', 'fontWeight': 'bold', 'marginRight': '15px', 'fontSize': '1.1rem'}),
+                    html.Span("Медиана: ", style={'color': '#8b949e', 'fontSize': '0.9rem'}),
+                    html.Span(f"{med_sec:.2f}с", style={'color': '#3fb950', 'fontWeight': 'bold', 'fontSize': '1.1rem'}),
+                ], className="text-center mb-3 mt-2"),
+                
+                dash_table.DataTable(
+                    data=df_modal.to_dict('records'),
+                    style_as_list_view=True,
+                    style_header={'fontWeight': 'bold', 'backgroundColor': 'transparent', 'color': '#8b949e', 'borderBottom': '1px solid #30363d'},
+                    style_cell={'textAlign': 'left', 'padding': '12px', 'backgroundColor': 'transparent', 'color': '#c9d1d9', 'borderBottom': '1px solid #21262d'},
+                    style_data_conditional=[{'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(255,255,255,0.02)'}]
+                )
+            ], style={
+                'background': 'linear-gradient(180deg, #161b22 0%, #0d1117 100%)',
+                'border': '1px solid #30363d', 'borderRadius': '20px', 'padding': '25px', 'height': '100%',
+                'boxShadow': '0 10px 30px rgba(0,0,0,0.4)'
+            })
+            modal_cols.append(dbc.Col(col_content, width=4))
+
+        tables_row = dbc.Row(modal_cols, className="align-items-stretch mb-4")
+
+        kpis_row = dbc.Row([
+            dbc.Col(create_kpi_block(data_structure[1], data_structure[0]), width=6),
+            dbc.Col(create_kpi_block(data_structure[2], data_structure[1]), width=6)
         ])
 
-    return msg if triggered_id == "btn-generate-top" else dash.no_update, data_structure, table_stack, kpi_content, kpi_style
+        modal_body = html.Div([tables_row, html.Hr(style={'borderColor': '#30363d', 'margin': '30px 0'}), kpis_row])
+        table_stack = [html.Div("📊 Сравнение 3-х турниров сейчас открыто в полноэкранном режиме. Нажмите кнопку выше, чтобы вернуться к нему.", className="text-center fw-bold mt-5 fs-5")]
+
+    else:
+        for entry in data_structure:
+            display_df = pd.DataFrame(entry['raw_results']).head(10)
+            display_df.insert(0, 'МЕСТО', range(1, len(display_df) + 1))
+            display_df = display_df.drop(columns=['СЕКУНДЫ'], errors='ignore')
+
+            gender_badge = entry.get('gender', 'М')
+            pool_badge = f" ({gender_badge}, {entry.get('pool', '50')}м)"
+            new_table_block = html.Div([
+                html.H3(f"{entry['competition'].upper()} | ТОП-10: {entry['distance'].upper()}{pool_badge}", style={'marginTop': '30px', 'marginBottom': '15px'}),
+                dash_table.DataTable(
+                    data=display_df.to_dict('records'),
+                    style_as_list_view=True,
+                    style_header={'fontWeight': 'bold'},
+                    style_cell={'textAlign': 'left', 'padding': '12px'}
+                ),
+                html.Hr(style={'borderColor': '#444'})
+            ])
+            table_stack.append(new_table_block)
+
+        if len(data_structure) == 2:
+            kpi_style = {
+                'display': 'block',
+                'background': 'linear-gradient(135deg, #161b22 0%, #0d1117 100%)',
+                'border': '1px solid #30363d',
+                'borderRadius': '16px',
+                'padding': '0',
+                'boxShadow': '0 8px 30px rgba(0,0,0,0.5)'
+            }
+            kpi_content = create_kpi_block(data_structure[1], data_structure[0])
+
+    return msg, data_structure, table_stack, kpi_content, kpi_style, is_modal_open, modal_body, reopen_btn_style, reset_contents, reset_filename
 
 @app.callback(
     Output("athlete-suggestions", "children"),
