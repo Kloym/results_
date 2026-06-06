@@ -24,3 +24,5 @@ RUN xvfb-run -a pyinstaller --onefile --clean \
     --collect-all "plotly" \
     --add-data "assets;assets" \
     app.py
+
+pyinstaller --noconfirm --onefile --clean --name "AquaTrack_Pro" --icon="i.ico" --add-data "assets;assets" --hidden-import "pdfplumber" --hidden-import "dash_bootstrap_components" --hidden-import "dash.backends._flask" --hidden-import "flask" app.py
